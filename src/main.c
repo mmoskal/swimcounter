@@ -115,19 +115,22 @@ static GBitmap *icon0, *icon1, *icon2;
 static void window_load(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
     GRect bounds = layer_get_bounds(window_layer);
+    
+    int x = 5;
+    int w = bounds.size.w - 30 - x;
 
-    text_layer = text_layer_create(GRect(5, 0, bounds.size.w - 10, 60));
+    text_layer = text_layer_create(GRect(x, 0, w, 60));
     text_layer_set_text(text_layer, "UP to start");
     text_layer_set_text_alignment(text_layer, GTextAlignmentCenter);
     text_layer_set_overflow_mode(text_layer, GTextOverflowModeWordWrap);
     text_layer_set_font(text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28));
 
-    number_layer = text_layer_create(GRect(5, 60, bounds.size.w - 10, bounds.size.h));
+    number_layer = text_layer_create(GRect(x, 60, w, bounds.size.h));
     text_layer_set_text(number_layer, "");
     text_layer_set_text_alignment(number_layer, GTextAlignmentCenter);
     text_layer_set_font(number_layer, fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
 
-    time_layer = text_layer_create(GRect(5, bounds.size.h - 35, bounds.size.w - 10, 35));
+    time_layer = text_layer_create(GRect(x, bounds.size.h - 35, w, 35));
     text_layer_set_text(time_layer, "00:00");
     text_layer_set_text_alignment(time_layer, GTextAlignmentCenter);
     text_layer_set_font(time_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28));
