@@ -8,7 +8,38 @@
     "longName": "Prostration Counter",
     "projectType": "native",
     "resources": {
-        "media": []
+        "media": [
+            {
+                "file": "images/settings",
+                "name": "IMG_SETTINGS",
+                "targetPlatforms": null,
+                "type": "bitmap"
+            },
+            {
+                "file": "images/play",
+                "name": "IMG_PLAY",
+                "targetPlatforms": null,
+                "type": "bitmap"
+            },
+            {
+                "file": "images/record",
+                "name": "IMG_RECORD",
+                "targetPlatforms": null,
+                "type": "bitmap"
+            },
+            {
+                "file": "images/pause",
+                "name": "IMG_PAUSE",
+                "targetPlatforms": null,
+                "type": "bitmap"
+            },
+            {
+                "file": "images/trash",
+                "name": "IMG_TRASH",
+                "targetPlatforms": null,
+                "type": "bitmap"
+            }
+        ]
     },
     "sdkVersion": "3",
     "shortName": "ProCounter",
