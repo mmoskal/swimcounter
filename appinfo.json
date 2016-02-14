@@ -1,0 +1,25 @@
+{
+    "appKeys": {},
+    "capabilities": [
+        ""
+    ],
+    "companyName": "michal@moskal.me",
+    "enableMultiJS": true,
+    "longName": "Prostration Counter",
+    "projectType": "native",
+    "resources": {
+        "media": []
+    },
+    "sdkVersion": "3",
+    "shortName": "ProCounter",
+    "targetPlatforms": [
+        "aplite",
+        "basalt",
+        "chalk"
+    ],
+    "uuid": "4084dbce-e27e-4f0b-ab28-72e0fb632784",
+    "versionLabel": "1.0",
+    "watchapp": {
+        "watchface": false
+    }
+}
