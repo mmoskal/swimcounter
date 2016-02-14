@@ -4,7 +4,7 @@ static Window *window;
 static TextLayer *text_layer;
 
 static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
-  text_layer_set_text(text_layer, "Select");
+    text_layer_set_text(text_layer, "Select");
 }
 
 static int aboveZeroStart = -1, phaseMax, phaseMaxAt, tryPhaseMaxAt, lastCount, lastHigh;
@@ -132,11 +132,13 @@ static void init(void) {
 }
 
 static void deinit(void) {
-  window_destroy(window);
+    window_destroy(window);
 }
 
 int main(void) {
-  init();
-  app_event_loop();
-  deinit();
+    init();
+    app_event_loop();
+    deinit();
 }
+
+// vim: sw=4
