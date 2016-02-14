@@ -25,6 +25,8 @@ static void showCount() {
 static uint64_t startTime;
 static int ind = 0;
 
+
+
 static void data_handler(AccelData *data, uint32_t num_samples) {
     // we need a peek 150ms wide and at least 1300 high
     // followed by a value under -1600 less than 1500ms after the peak
@@ -140,7 +142,5 @@ int main(void) {
     app_event_loop();
     deinit();
 }
-
-
 
 // vim: sw=4
