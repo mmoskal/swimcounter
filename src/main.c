@@ -6,7 +6,7 @@ static TextLayer *number_layer;
 static TextLayer *time_layer;
 static ActionBarLayer *action_bar;
 
-static int aboveZeroStart = -1, phaseMax, phaseMaxAt, tryPhaseMaxAt, lastCount, lastHigh;
+static int phaseStop, phaseLen, aboveZeroStart = -1, phaseMax, phaseMaxAt, tryPhaseMaxAt, lastCount;
 static int count, sampleNo, lastTime;
 
 static void showCount() {
@@ -25,6 +25,9 @@ static int ind = 0;
 #define DBG(args...)
 
 static void data_handler(AccelData *data, uint32_t num_samples) {
+    char hexbufA[num_samples * 4 + 25];
+    char hexbufB[num_samples * 4 + 25];
+    
     // we need a peek 150ms wide and at least 1300 high
     // followed by a value under -1600 less than 1500ms after the peak
     for (unsigned i = 0; i < num_samples; ++i) {
@@ -38,40 +41,43 @@ static void data_handler(AccelData *data, uint32_t num_samples) {
         
         int x = -data[i].x;  // - for left hand
         
-        if (x > -500)
-            lastHigh = now;
-
-        if (x > 0) {
+        if (x > -500) {
             if (aboveZeroStart < 0) {
                 aboveZeroStart = now;
-                phaseMax = 0;            
-                tryPhaseMaxAt = 0;
-                ind = 500;
+                ind = 1;
             }
-            if (x > 1300 && x > phaseMax) {
+            if (x > 1000 && x > phaseMax) {
                 phaseMax = x;
                 tryPhaseMaxAt = now;
-                ind = 1000;
+                ind = 2;
             }
-            if (tryPhaseMaxAt && now - aboveZeroStart > 150) {
+            if (tryPhaseMaxAt && now - aboveZeroStart > 200) {
                 DBG("Real phase max, %d", (int)(now - aboveZeroStart));
                 phaseMaxAt = tryPhaseMaxAt;
                 tryPhaseMaxAt = 0;
-                ind = 1500;
+                ind = 3;
             }
         }
         else {
-            aboveZeroStart = -1;
+            if (aboveZeroStart > 0) {
+                if (phaseMaxAt >= aboveZeroStart) {
+                    phaseStop = now;
+                    phaseLen = now - aboveZeroStart;
+                }
+                aboveZeroStart = -1;
+                phaseMax = 0;
+                tryPhaseMaxAt = 0;
+            }
             ind = 0;
-            if (x < -1600) {
+            if (x < -1000) {
                 DBG("d0=%d d1=%d", now - lastHigh, now - phaseMaxAt);
-                if (now - phaseMaxAt < 1500) {
-                    // do not count too often
-                    if (now - lastCount > 1500) {
-                        ind = 2000;
+                if (now - phaseMaxAt < 4000 && now - phaseStop < phaseLen / 4 + 600) {
+                    // do not count too often; 4-5s would be the real non-testing limit
+                    if (now - lastCount > 2500) {
+                        ind = 4;
                         lastCount = now;
                         count = count + 1;
-                        phaseMax = 0;
+                        phaseMaxAt = 0;
                         vibes_short_pulse();
                         lastTime = (now - 10000) / 1000;
                         showCount();
@@ -81,8 +87,17 @@ static void data_handler(AccelData *data, uint32_t num_samples) {
         }
         
         sampleNo++;
+        
+        unsigned int mid = num_samples / 2;
+        char *ptr =  i >= mid ? &hexbufB[(i - mid) * 8] : &hexbufA[i * 8];
+        #define R(v,s) (((v >> 4) & 0x3ff) << s)
+        snprintf(ptr, 9, "%08x", R(data[i].x, 0) |  R(data[i].y, 10) | R(data[i].z, 20) | (ind << 30));
+        
         DBG("ACCEL: %d,%d,%d,%d", sampleNo, now, x, ind);
     }
+    
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "HXTC: %s", hexbufA);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "HXTC: %s", hexbufB);
 }
 
 static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
@@ -93,7 +108,7 @@ static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
 static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
     text_layer_set_text(text_layer, "Go ahead!");
     
-    uint32_t num_samples = 25;
+    uint32_t num_samples = 20;
     accel_data_service_subscribe(num_samples, data_handler);
     accel_service_set_sampling_rate(ACCEL_SAMPLING_50HZ);
 }
