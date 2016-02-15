@@ -1,5 +1,10 @@
 {
-    "appKeys": {},
+    "appKeys": {
+        "KEY_ACC_DATA": 1,
+        "KEY_APP_READY": 2,
+        "KEY_DATA_POSTED": 4,
+        "KEY_POST_DATA": 3
+    },
     "capabilities": [
         ""
     ],
