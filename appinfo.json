@@ -15,6 +15,24 @@
     "resources": {
         "media": [
             {
+                "file": "images/resume",
+                "name": "IMG_RESUME",
+                "targetPlatforms": null,
+                "type": "bitmap"
+            },
+            {
+                "file": "images/cloudup",
+                "name": "IMG_CLOUDUP",
+                "targetPlatforms": null,
+                "type": "bitmap"
+            },
+            {
+                "file": "images/break",
+                "name": "IMG_BREAK",
+                "targetPlatforms": null,
+                "type": "bitmap"
+            },
+            {
                 "file": "images/settings",
                 "name": "IMG_SETTINGS",
                 "targetPlatforms": null,

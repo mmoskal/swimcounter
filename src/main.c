@@ -18,12 +18,16 @@ static ActionBarLayer *action_bar;
 static int phaseStop, phaseLen, aboveZeroStart = -1, phaseMax, phaseMaxAt, tryPhaseMaxAt, lastCount;
 static int count, sampleNo, lastTime;
 static int recordingStatus;
+static int paused;
 
 #define PKTSIZE 14
 
+#define PKT_FLAG_POST 1
+
 typedef struct DataPacket {
     struct DataPacket *next;
-    int byteSize;
+    uint16_t byteSize;
+    uint16_t flags;
     int16_t payload[PKTSIZE*3];
 } *Pkt;
 
@@ -41,9 +45,9 @@ static void sendFirst() {
     sendState = 1;
     DictionaryIterator *iterator;
     app_message_outbox_begin(&iterator);   
-    if (recordingStatus == 2) {
+    if (queue->flags & PKT_FLAG_POST) {
         dict_write_int8(iterator, KEY_POST_DATA, 1);
-        recordingStatus = 3;
+        recordingStatus = 4;
     }
     dict_write_data(iterator, KEY_ACC_DATA, (const uint8_t*)&queue->payload, queue->byteSize);
     app_message_outbox_send();
@@ -51,7 +55,7 @@ static void sendFirst() {
 
 static void pokeSend() {
     if (sendState != 2) return;
-    if (recordingStatus == 0 || recordingStatus == 3) return;
+    if (recordingStatus == 0 || recordingStatus == 4) return;
     if (queue)
         sendFirst();
 }
@@ -65,13 +69,17 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
         pokeSend();
     }
     
+    static char errCode[30];
+    
     data = dict_find(iterator, KEY_DATA_POSTED);
     if (data) {
         APP_LOG(APP_LOG_LEVEL_DEBUG, "Data posted: %d", (int)data->value->int32);
         if (data->value->int32 == 200)
             text_layer_set_text(text_layer, "Saved!");
-        else
-            text_layer_set_text(text_layer, "Error saving.");
+        else {
+            snprintf(errCode, sizeof errCode, "Error (%d) saving", (int)data->value->int32);
+            text_layer_set_text(text_layer, errCode);
+        }
         recordingStatus = 0;
     }
 }
@@ -118,11 +126,11 @@ static int ind = 0;
 static void data_handler(AccelData *data, uint32_t num_samples) {
     assert(num_samples <= PKTSIZE);
     
+    if (paused) return;
+    
     Pkt pkt = (Pkt)malloc(sizeof(struct DataPacket));
     int ptr = 0;
     
-    // we need a peek 150ms wide and at least 1300 high
-    // followed by a value under -1600 less than 1500ms after the peak
     for (unsigned i = 0; i < num_samples; ++i) {
         if (data[i].did_vibrate)
             continue;
@@ -167,7 +175,7 @@ static void data_handler(AccelData *data, uint32_t num_samples) {
                 if (now - phaseMaxAt < 4000 && now - phaseStop < phaseLen / 4 + 600) {
                     // do not count too often; 4-5s would be the real non-testing limit
                     if (now - lastCount > 2500) {
-                        ind = 4;
+                        ind = 20;
                         lastCount = now;
                         count = count + 1;
                         phaseMaxAt = 0;
@@ -190,8 +198,19 @@ static void data_handler(AccelData *data, uint32_t num_samples) {
         DBG("ACCEL: %d,%d,%d,%d", sampleNo, now, x, ind);
     }
     
+    if (recordingStatus == 0) {
+        free(pkt);
+        return;
+    }
+    
     pkt->next = NULL;
     pkt->byteSize = ptr * 2;
+    pkt->flags = 0;
+    
+    if (recordingStatus == 2) {
+        pkt->flags |= PKT_FLAG_POST;
+        recordingStatus = 3;
+    }
     
     if (queue == NULL) {
         queue = pkt;
@@ -204,7 +223,7 @@ static void data_handler(AccelData *data, uint32_t num_samples) {
             depth++;
         }        
         last->next = pkt;
-        if (depth > 200) {
+        if (depth > 100) {
             pkt = queue;
             queue = queue->next;
             free(pkt);
@@ -220,16 +239,27 @@ static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
     showCount();
 }
 
-static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
+static void startUp() {
     text_layer_set_text(text_layer, "Go ahead!");
-    
-    
-    APP_LOG(APP_LOG_LEVEL_INFO, "Mem free: %d", (int)heap_bytes_free());
-    
-    
+    APP_LOG(APP_LOG_LEVEL_INFO, "Mem free: %d", (int)heap_bytes_free());    
     uint32_t num_samples = PKTSIZE;
     accel_data_service_subscribe(num_samples, data_handler);
     accel_service_set_sampling_rate(ACCEL_SAMPLING_50HZ);
+}
+
+static GBitmap *iconTrash, *iconCloudup, *iconResume, *iconPause;
+
+static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
+    if (paused) {
+        paused = 0;
+        startUp();
+        action_bar_layer_set_icon_animated(action_bar, BUTTON_ID_UP, iconPause, true);
+    } else {
+        text_layer_set_text(text_layer, "Paused.");
+        paused = 1;
+        accel_data_service_unsubscribe();
+        action_bar_layer_set_icon_animated(action_bar, BUTTON_ID_UP, iconResume, true);
+    }
 }
 
 static void down_click_handler(ClickRecognizerRef recognizer, void *context) {    
@@ -253,8 +283,6 @@ static void click_config_provider(void *context) {
   window_single_click_subscribe(BUTTON_ID_DOWN, down_click_handler);
 }
 
-static GBitmap *icon0, *icon1, *icon2;
-
 static void window_load(Window *window) {
     Layer *window_layer = window_get_root_layer(window);
     GRect bounds = layer_get_bounds(window_layer);
@@ -263,7 +291,6 @@ static void window_load(Window *window) {
     int w = bounds.size.w - 30 - x;
 
     text_layer = text_layer_create(GRect(x, 0, w, 60));
-    text_layer_set_text(text_layer, "UP to start");
     text_layer_set_text_alignment(text_layer, GTextAlignmentCenter);
     text_layer_set_overflow_mode(text_layer, GTextOverflowModeWordWrap);
     text_layer_set_font(text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28));
@@ -288,21 +315,24 @@ static void window_load(Window *window) {
     action_bar_layer_set_click_config_provider(action_bar, click_config_provider);
 
     // Set the icons:
-    // The loading of the icons is omitted for brevity... See gbitmap_create_with_resource()
-    icon0 = gbitmap_create_with_resource(RESOURCE_ID_IMG_TRASH);
-    icon1 = gbitmap_create_with_resource(RESOURCE_ID_IMG_SETTINGS);
-    icon2 = gbitmap_create_with_resource(RESOURCE_ID_IMG_PLAY);
+    iconTrash = gbitmap_create_with_resource(RESOURCE_ID_IMG_TRASH);
+    iconCloudup = gbitmap_create_with_resource(RESOURCE_ID_IMG_CLOUDUP);
+    iconResume = gbitmap_create_with_resource(RESOURCE_ID_IMG_RESUME);
+    iconPause = gbitmap_create_with_resource(RESOURCE_ID_IMG_BREAK);
     
-    action_bar_layer_set_icon_animated(action_bar, BUTTON_ID_UP, icon2, true);
-    action_bar_layer_set_icon_animated(action_bar, BUTTON_ID_SELECT, icon0, true);
-    action_bar_layer_set_icon_animated(action_bar, BUTTON_ID_DOWN, icon1, true);
+    action_bar_layer_set_icon_animated(action_bar, BUTTON_ID_UP, iconPause, true);
+    action_bar_layer_set_icon_animated(action_bar, BUTTON_ID_SELECT, iconTrash, true);
+    action_bar_layer_set_icon_animated(action_bar, BUTTON_ID_DOWN, iconCloudup, true);
+    
+    startUp();
 }
 
 static void window_unload(Window *window) {
     text_layer_destroy(text_layer);
-    gbitmap_destroy(icon0);
-    gbitmap_destroy(icon1);
-    gbitmap_destroy(icon2);
+    gbitmap_destroy(iconTrash);
+    gbitmap_destroy(iconCloudup);
+    gbitmap_destroy(iconResume);
+    gbitmap_destroy(iconPause);
 }
 
 static void init(void) {
