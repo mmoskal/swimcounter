@@ -1,5 +1,5 @@
 #include <pebble.h>
-
+#include "detector.h"
 
 static int *nullPtr;
 static int assert_handler(const char *cond, const char *fn, int line) {
@@ -15,8 +15,10 @@ static TextLayer *number_layer;
 static TextLayer *time_layer;
 static ActionBarLayer *action_bar;
 
-static int phaseStop, phaseLen, aboveZeroStart = -1, phaseMax, phaseMaxAt, tryPhaseMaxAt, lastCount;
-static int count, sampleNo, lastTime;
+
+int count;
+
+static int sampleNo;
 static int recordingStatus;
 static int paused;
 
@@ -108,6 +110,9 @@ static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
     }
 }
 
+static uint64_t startTime;
+static int now, lastTime;
+
 static void showCount() {
     static char s_buffer[10];
     static char s_time[10];
@@ -117,8 +122,11 @@ static void showCount() {
     text_layer_set_text(time_layer, s_time);
 }
 
-static uint64_t startTime;
-static int ind = 0;
+void record_one() {
+    count++;
+    lastTime = now;
+    showCount();
+}
 
 //#define DBG(args...) APP_LOG(APP_LOG_LEVEL_DEBUG, args)
 #define DBG(args...)
@@ -136,66 +144,15 @@ static void data_handler(AccelData *data, uint32_t num_samples) {
             continue;
         
         if (startTime == 0)
-            startTime = data[i].timestamp - 10000;
+            startTime = data[i].timestamp;
         
-        int now = (int)(data[i].timestamp - startTime);
+        now = data[i].timestamp - startTime;
+        process_sample(data[i].x, data[i].y, data[i].z, data[i].timestamp);
         
-        int x = -data[i].x;  // - for left hand
-        
-        if (x > -500) {
-            if (aboveZeroStart < 0) {
-                aboveZeroStart = now;
-                ind = 1;
-            }
-            if (x > 1000 && x > phaseMax) {
-                phaseMax = x;
-                tryPhaseMaxAt = now;
-                ind = 2;
-            }
-            if (tryPhaseMaxAt && now - aboveZeroStart > 200) {
-                DBG("Real phase max, %d", (int)(now - aboveZeroStart));
-                phaseMaxAt = tryPhaseMaxAt;
-                tryPhaseMaxAt = 0;
-                ind = 3;
-            }
-        }
-        else {
-            if (aboveZeroStart > 0) {
-                if (phaseMaxAt >= aboveZeroStart) {
-                    phaseStop = now;
-                    phaseLen = now - aboveZeroStart;
-                }
-                aboveZeroStart = -1;
-                phaseMax = 0;
-                tryPhaseMaxAt = 0;
-            }
-            ind = 0;
-            if (x < -1000) {
-                DBG("d0=%d d1=%d", now - lastHigh, now - phaseMaxAt);
-                if (now - phaseMaxAt < 4000 && now - phaseStop < phaseLen / 4 + 600) {
-                    // do not count too often; 4-5s would be the real non-testing limit
-                    if (now - lastCount > 2500) {
-                        ind = 20;
-                        lastCount = now;
-                        count = count + 1;
-                        phaseMaxAt = 0;
-                        vibes_short_pulse();
-                        lastTime = (now - 10000) / 1000;
-                        showCount();
-                    }
-                }
-            }
-        }
-        
-        sampleNo++;
-        
-        #define R(f,k) pkt->payload[ptr++] = ((data[i].f) & 0x1fff) | (((ind >> k) & 0x7) << 13)
-        
+        #define R(f,k) pkt->payload[ptr++] = ((data[i].f) & 0x1fff) | (((detector_state >> k) & 0x7) << 13)
         R(x,0);
         R(y,3);
         R(z,6);
-        
-        DBG("ACCEL: %d,%d,%d,%d", sampleNo, now, x, ind);
     }
     
     if (recordingStatus == 0) {
@@ -229,9 +186,6 @@ static void data_handler(AccelData *data, uint32_t num_samples) {
             free(pkt);
         }
     }
-    
-    //APP_LOG(APP_LOG_LEVEL_DEBUG, "HXTC: %s", hexbufA);
-    //APP_LOG(APP_LOG_LEVEL_DEBUG, "HXTC: %s", hexbufB);
 }
 
 static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
