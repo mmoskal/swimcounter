@@ -18,7 +18,6 @@ static ActionBarLayer *action_bar;
 
 int count;
 
-static int sampleNo;
 static int recordingStatus;
 static int paused;
 
@@ -146,7 +145,7 @@ static void data_handler(AccelData *data, uint32_t num_samples) {
         if (startTime == 0)
             startTime = data[i].timestamp;
         
-        now = data[i].timestamp - startTime;
+        now = (data[i].timestamp - startTime) / 1000;
         process_sample(data[i].x, data[i].y, data[i].z, data[i].timestamp);
         
         #define R(f,k) pkt->payload[ptr++] = ((data[i].f) & 0x1fff) | (((detector_state >> k) & 0x7) << 13)

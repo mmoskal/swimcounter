@@ -14,6 +14,18 @@ function postCsv(buf, cb) {
     client.send(buf);
 }
 
+function pingCloud() {
+    var client = new XMLHttpRequest();
+    var url = "https://nct.azurewebsites.net/ping";
+    client.onreadystatechange = function () {
+        if (client.readyState == 4) {
+            console.log("Ping response", client.status, url);
+        }
+    };
+    client.open("GET", url);
+    client.send();
+}
+
 function decode(arr) {
   var out = "";
   var ind = 0;
@@ -43,6 +55,7 @@ function sendMsg(dict) {
 
 Pebble.addEventListener('ready', function(e) {
     console.log('ProCounter JS ready');
+    pingCloud();
     sendMsg({ 'KEY_APP_READY':1 });
 });
 
