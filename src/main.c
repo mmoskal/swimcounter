@@ -20,6 +20,8 @@ int count;
 
 static int recordingStatus;
 static int paused;
+static uint64_t startTime;
+static int now, prostrationLength, firstTime;
 
 #define PKTSIZE 14
 
@@ -109,21 +111,21 @@ static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
     }
 }
 
-static uint64_t startTime;
-static int now, lastTime;
-
 static void showCount() {
     static char s_buffer[10];
     static char s_time[10];
     snprintf(s_buffer, sizeof(s_buffer), "%d", count);
     text_layer_set_text(number_layer, s_buffer);
-    snprintf(s_time, sizeof(s_time), "%02d:%02d", lastTime/60, lastTime % 60);
+    snprintf(s_time, sizeof(s_time), "%02d:%02d", prostrationLength/60, prostrationLength % 60);
     text_layer_set_text(time_layer, s_time);
 }
 
 void record_one() {
     count++;
-    lastTime = now;
+    if (firstTime == 0)
+        // assume prostration started 3 seconds ago
+        firstTime = now - 3;
+    prostrationLength = now - firstTime;
     showCount();
 }
 
@@ -145,7 +147,7 @@ static void data_handler(AccelData *data, uint32_t num_samples) {
         if (startTime == 0)
             startTime = data[i].timestamp;
         
-        now = (data[i].timestamp - startTime) / 1000;
+        now = (data[i].timestamp - startTime) / 1000 + 100;
         process_sample(data[i].x, data[i].y, data[i].z, data[i].timestamp);
         
         #define R(f,k) pkt->payload[ptr++] = ((data[i].f) & 0x1fff) | (((detector_state >> k) & 0x7) << 13)
@@ -198,6 +200,7 @@ static void startUp() {
     uint32_t num_samples = PKTSIZE;
     accel_data_service_subscribe(num_samples, data_handler);
     accel_service_set_sampling_rate(ACCEL_SAMPLING_50HZ);
+    showCount();
 }
 
 static GBitmap *iconTrash, *iconCloudup, *iconResume, *iconPause;
