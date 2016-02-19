@@ -69,8 +69,8 @@ void process_sample(int x, int y, int z, uint64_t timestamp)
 
     if (y < R(-800) && INBOUNDS(400, now - phase2, 3800)) {
         detector_state = 8;
-        // do not count too often; 4s would be the real non-testing limit
-        if (now - lastCount > 2500) {
+        // do not count too often
+        if (now - lastCount > 3500) {
             detector_state = 20;
             lastCount = now;
             phase1 = 0;
