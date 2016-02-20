@@ -24,6 +24,7 @@ static uint64_t startTime;
 static int now, prostrationLength, firstTime;
 
 #define PKTSIZE 14
+#define MAXQ 100
 
 #define PKT_FLAG_POST 1
 
@@ -35,7 +36,8 @@ typedef struct DataPacket {
 } *Pkt;
 
 static int numRetries, sendState;
-static Pkt queue;
+static Pkt qHead, qTail;
+static int qLength;
 
 #define KEY_ACC_DATA 1
 #define KEY_APP_READY 2
@@ -48,18 +50,18 @@ static void sendFirst() {
     sendState = 1;
     DictionaryIterator *iterator;
     app_message_outbox_begin(&iterator);   
-    if (queue->flags & PKT_FLAG_POST) {
+    if (qHead->flags & PKT_FLAG_POST) {
         dict_write_int8(iterator, KEY_POST_DATA, 1);
         recordingStatus = 4;
     }
-    dict_write_data(iterator, KEY_ACC_DATA, (const uint8_t*)&queue->payload, queue->byteSize);
+    dict_write_data(iterator, KEY_ACC_DATA, (const uint8_t*)&qHead->payload, qHead->byteSize);
     app_message_outbox_send();
 }
 
 static void pokeSend() {
     if (sendState != 2) return;
     if (recordingStatus == 0 || recordingStatus == 4) return;
-    if (queue)
+    if (qHead)
         sendFirst();
 }
 
@@ -98,13 +100,22 @@ static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResul
     }
 }
 
+static void popQEntry() {
+    Pkt p = qHead;
+    qHead = p->next;
+    qLength--;
+    free(p);
+    if (!qHead) {
+        qTail = NULL;
+        assert(qLength == 0);
+    }
+}
+
 static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
     //APP_LOG(APP_LOG_LEVEL_INFO, "Outbox send success!");
     numRetries = 0;
-    Pkt p = queue;
-    queue = p->next;
-    free(p);
-    if (queue) {
+    popQEntry();
+    if (qHead) {
         sendFirst();
     } else {
         sendState = 2;
@@ -170,22 +181,24 @@ static void data_handler(AccelData *data, uint32_t num_samples) {
         recordingStatus = 3;
     }
     
-    if (queue == NULL) {
-        queue = pkt;
+    if (qHead == NULL) {
+        qHead = qTail = pkt;
+        qLength = 1;
         pokeSend();
     } else {
-        Pkt last = queue;
-        int depth = 0;
-        while (last->next) {
-            last = last->next;
-            depth++;
-        }        
-        last->next = pkt;
-        if (depth > 100) {
-            pkt = queue;
-            queue = queue->next;
-            free(pkt);
+        if (qLength > MAXQ) {
+            popQEntry();
         }
+
+        if (qHead) {
+            qTail->next = pkt;
+        } else {
+            assert(qLength == 0);
+            qHead = pkt;
+        }
+
+        qTail = pkt;
+        qLength++;
     }
 }
 
@@ -316,10 +329,8 @@ static void deinit(void) {
     window_destroy(window);
     accel_data_service_unsubscribe();
     app_message_deregister_callbacks();
-    while (queue) {
-        Pkt tmp = queue;
-        queue = queue->next;
-        free(tmp);
+    while (qHead) {
+        popQEntry();
     }
 }
 
