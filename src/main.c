@@ -24,7 +24,7 @@ static uint64_t startTime;
 static int now, prostrationLength, firstTime;
 
 #define PKTSIZE 14
-#define MAXQ 100
+#define MAXQ 400
 
 #define PKT_FLAG_POST 1
 
@@ -94,9 +94,9 @@ static void inbox_dropped_callback(AppMessageResult reason, void *context) {
 }
 
 static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context) {
-    APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox send failed!");
-    if (numRetries++ < 10) {
-        sendFirst();
+    // APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox send failed!");
+    if (numRetries++ < 1000) {
+        app_timer_register(1000, sendFirst, NULL);
     }
 }
 
@@ -105,20 +105,10 @@ static void popQEntry() {
     qHead = p->next;
     qLength--;
     free(p);
+
     if (!qHead) {
         qTail = NULL;
         assert(qLength == 0);
-    }
-}
-
-static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
-    //APP_LOG(APP_LOG_LEVEL_INFO, "Outbox send success!");
-    numRetries = 0;
-    popQEntry();
-    if (qHead) {
-        sendFirst();
-    } else {
-        sendState = 2;
     }
 }
 
@@ -127,8 +117,23 @@ static void showCount() {
     static char s_time[10];
     snprintf(s_buffer, sizeof(s_buffer), "%d", count);
     text_layer_set_text(number_layer, s_buffer);
-    snprintf(s_time, sizeof(s_time), "%02d:%02d", prostrationLength/60, prostrationLength % 60);
+    if (qLength)
+        snprintf(s_time, sizeof(s_time), "%d to go", qLength);
+    else
+        snprintf(s_time, sizeof(s_time), "%02d:%02d", prostrationLength/60, prostrationLength % 60);
     text_layer_set_text(time_layer, s_time);
+}
+
+static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
+    //APP_LOG(APP_LOG_LEVEL_INFO, "Outbox send success!");
+    numRetries = 0;
+    popQEntry();
+    showCount();
+    if (qHead) {
+        sendFirst();
+    } else {
+        sendState = 2;
+    }
 }
 
 void record_one() {
