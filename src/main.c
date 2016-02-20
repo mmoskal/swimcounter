@@ -89,12 +89,35 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
 }
 
+static int displayUpdateStatus = 0;
+static void showCount() {
+    displayUpdateStatus = 0;
+    static char s_buffer[10];
+    static char s_time[10];
+    snprintf(s_buffer, sizeof(s_buffer), "%d", count);
+    text_layer_set_text(number_layer, s_buffer);
+    if (qLength)
+        snprintf(s_time, sizeof(s_time), "%d to go", qLength);
+    else
+        snprintf(s_time, sizeof(s_time), "%02d:%02d", prostrationLength/60, prostrationLength % 60);
+    text_layer_set_text(time_layer, s_time);
+}
+
+static void queueDisplayUpdate() {
+    if (displayUpdateStatus == 0) {
+        displayUpdateStatus = 1;
+        app_timer_register(1000, showCount, NULL);
+    }
+}
+
 static void inbox_dropped_callback(AppMessageResult reason, void *context) {
   APP_LOG(APP_LOG_LEVEL_ERROR, "Message dropped!");
 }
 
+
 static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context) {
     // APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox send failed!");
+    queueDisplayUpdate();
     if (numRetries++ < 1000) {
         app_timer_register(1000, sendFirst, NULL);
     }
@@ -112,23 +135,11 @@ static void popQEntry() {
     }
 }
 
-static void showCount() {
-    static char s_buffer[10];
-    static char s_time[10];
-    snprintf(s_buffer, sizeof(s_buffer), "%d", count);
-    text_layer_set_text(number_layer, s_buffer);
-    if (qLength)
-        snprintf(s_time, sizeof(s_time), "%d to go", qLength);
-    else
-        snprintf(s_time, sizeof(s_time), "%02d:%02d", prostrationLength/60, prostrationLength % 60);
-    text_layer_set_text(time_layer, s_time);
-}
-
 static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
     //APP_LOG(APP_LOG_LEVEL_INFO, "Outbox send success!");
     numRetries = 0;
     popQEntry();
-    showCount();
+    queueDisplayUpdate();
     if (qHead) {
         sendFirst();
     } else {
@@ -213,7 +224,7 @@ static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
 }
 
 static void startUp() {
-    text_layer_set_text(text_layer, "Go ahead!");
+    text_layer_set_text(text_layer, "Swim!");
     APP_LOG(APP_LOG_LEVEL_INFO, "Mem free: %d", (int)heap_bytes_free());    
     uint32_t num_samples = PKTSIZE;
     accel_data_service_subscribe(num_samples, data_handler);

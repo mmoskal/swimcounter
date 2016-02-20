@@ -10,7 +10,7 @@
     ],
     "companyName": "michal@moskal.me",
     "enableMultiJS": true,
-    "longName": "Prostration Counter",
+    "longName": "Acc Swim",
     "projectType": "native",
     "resources": {
         "media": [
@@ -65,13 +65,13 @@
         ]
     },
     "sdkVersion": "3",
-    "shortName": "ProCounter",
+    "shortName": "AccSwim",
     "targetPlatforms": [
         "aplite",
         "basalt",
         "chalk"
     ],
-    "uuid": "4084dbce-e27e-4f0b-ab28-72e0fb632784",
+    "uuid": "a9cf7c11-8dc6-4a02-8981-7f36e4074f1f",
     "versionLabel": "1.0",
     "watchapp": {
         "watchface": false
