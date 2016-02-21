@@ -16,12 +16,10 @@ static TextLayer *time_layer;
 static ActionBarLayer *action_bar;
 
 
-int count;
-
 static int recordingStatus;
 static int paused;
 static uint64_t startTime;
-static int now, prostrationLength, firstTime;
+static int now, workoutLength, firstTime;
 
 #define PKTSIZE 14
 #define MAXQ 400
@@ -44,18 +42,26 @@ static int qLength;
 #define KEY_POST_DATA 3
 #define KEY_DATA_POSTED 4
 
+static void sendFailed();
+
 static void sendFirst() {
     //APP_LOG(APP_LOG_LEVEL_DEBUG, "sending first, rs=%d", recordingStatus);
     
     sendState = 1;
     DictionaryIterator *iterator;
-    app_message_outbox_begin(&iterator);   
+    if (app_message_outbox_begin(&iterator) != APP_MSG_OK) {
+        sendFailed();
+        return;
+    }
     if (qHead->flags & PKT_FLAG_POST) {
         dict_write_int8(iterator, KEY_POST_DATA, 1);
         recordingStatus = 4;
     }
     dict_write_data(iterator, KEY_ACC_DATA, (const uint8_t*)&qHead->payload, qHead->byteSize);
-    app_message_outbox_send();
+    if (app_message_outbox_send() != APP_MSG_OK) {
+        sendFailed();
+        return;
+    }
 }
 
 static void pokeSend() {
@@ -94,12 +100,12 @@ static void showCount() {
     displayUpdateStatus = 0;
     static char s_buffer[10];
     static char s_time[10];
-    snprintf(s_buffer, sizeof(s_buffer), "%d", count);
+    snprintf(s_buffer, sizeof(s_buffer), "%d", laps);
     text_layer_set_text(number_layer, s_buffer);
     if (qLength)
-        snprintf(s_time, sizeof(s_time), "%d to go", qLength);
+        snprintf(s_time, sizeof(s_time), "[%d] s%d", qLength, strokeCount);
     else
-        snprintf(s_time, sizeof(s_time), "%02d:%02d", prostrationLength/60, prostrationLength % 60);
+        snprintf(s_time, sizeof(s_time), "%02d:%02d s%d", workoutLength/60, workoutLength % 60, strokeCount);
     text_layer_set_text(time_layer, s_time);
 }
 
@@ -114,13 +120,16 @@ static void inbox_dropped_callback(AppMessageResult reason, void *context) {
   APP_LOG(APP_LOG_LEVEL_ERROR, "Message dropped!");
 }
 
-
-static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context) {
-    // APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox send failed!");
+static void sendFailed() {
     queueDisplayUpdate();
     if (numRetries++ < 1000) {
         app_timer_register(1000, sendFirst, NULL);
     }
+}
+
+static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context) {
+    // APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox send failed!");
+    sendFailed();
 }
 
 static void popQEntry() {
@@ -147,12 +156,12 @@ static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
     }
 }
 
-void record_one() {
-    count++;
+void update_view() {
     if (firstTime == 0)
-        // assume prostration started 3 seconds ago
+        // assume workout started 3 seconds ago
         firstTime = now - 3;
-    prostrationLength = now - firstTime;
+    workoutLength = now - firstTime;
+    vibes_short_pulse();
     showCount();
 }
 
@@ -219,7 +228,7 @@ static void data_handler(AccelData *data, uint32_t num_samples) {
 }
 
 static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
-    count = 0;
+    resetDet();
     showCount();
 }
 

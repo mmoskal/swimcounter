@@ -3,9 +3,10 @@ function postCsv(buf, cb) {
     var url = "https://nct.azurewebsites.net/data" +
                 "?watch=" + encodeURIComponent(Pebble.getWatchToken()) + 
                 "&account=" + encodeURIComponent(Pebble.getAccountToken());
+    console.log(url);
     client.onreadystatechange = function () {
         if (client.readyState == 4) {
-            console.log("Server response", client.status, client.responseText, url);
+            console.log("Server response", client.status, client.responseText);
             cb(client.status);
         }
     };
