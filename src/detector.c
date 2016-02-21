@@ -30,12 +30,17 @@ void resetDet() {
     startTime = 0;
     xMaxAt = 0;
     xMax = 0;
+    xZeroAt = 0;
     yMaxAt = 0;
     yMax = 0;
     yZeroAt = 0;
-    xZeroAt = 0;
+
     strokeCount = 0;
     laps = 0;
+    lapCounted = 0;
+
+    lastCount = 0;
+    prevCount = 0;
 }
 
 void process_sample(int x, int y, int z, uint64_t timestamp)
@@ -97,8 +102,8 @@ void process_sample(int x, int y, int z, uint64_t timestamp)
                 lapCounted = 1;
             }
 
-            if (lastCount - prevCount > 4000 || 
-                (lastCount - prevCount > 2000 && strokeCount >= minStroke) ||
+            if (lastCount - prevCount > 5000 || 
+                (lastCount - prevCount > 2500 && strokeCount >= minStroke) ||
                 strokeCount >= maxStroke) {
                 strokeCount = 0;
                 lapCounted = 0;

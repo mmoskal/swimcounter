@@ -161,7 +161,7 @@ void update_view() {
         // assume workout started 3 seconds ago
         firstTime = now - 3;
     workoutLength = now - firstTime;
-    vibes_short_pulse();
+    //vibes_short_pulse();
     showCount();
 }
 
